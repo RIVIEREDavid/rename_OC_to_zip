@@ -216,7 +216,7 @@ pdf_files = st.file_uploader('Sélectionnez les fichiers PDF', type='pdf', accep
 
 # Si des fichiers ont été sélectionnés, on les renomme et on les zippes
 if pdf_files:
-    with st.spinner("¨Travail en cours...")
+    with st.spinner("¨Travail en cours..."):
         new_pdf_files = rename_files(pdf_files)
         # appeler la fonction zip_files et stocker le résultat dans zip_data
     zip_data = zip_files(new_pdf_files)
