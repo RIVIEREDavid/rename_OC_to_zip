@@ -69,9 +69,9 @@ def rename_files(pdf_files):
                 po_list = sorted([i.group(0) for i in re.finditer(regex, text_result)])
                 po_list_str = "_".join(set(po_list))
                 if po_list_str == "":
-                    new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension
+                    new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension.lower()
                 else:
-                    new_file_name = custom_date() + "_" + po_list_str + file_extension
+                    new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
                 new_pdf_files.append((new_file_name, file))
 
             # b. SI PLUSIEURS PAGES
@@ -88,7 +88,7 @@ def rename_files(pdf_files):
                     # ajout de la page en-cour du fichier de départ
                     pdf_writer.add_page(pdf_reader.pages[num_page])
                     # création d'un nouveau nom temporaire
-                    new_file_name_temp = str(num_page).rjust(2, "0") + file_extension
+                    new_file_name_temp = str(num_page).rjust(2, "0") + file_extension.lower()
                     # création d'un nouveau chemin temporaire
                     # new_file_path_temp = os.path.join(new_file_name_temp)
                     new_file_path_temp = Path(my_temp_dir.name) / new_file_name_temp
@@ -115,9 +115,9 @@ def rename_files(pdf_files):
                     po_list = sorted([i.group(0) for i in re.finditer(regex, text_result)])
                     po_list_str = "_".join(set(po_list))
                     if po_list_str == "":
-                        new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension
+                        new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension.lower()
                     else:
-                        new_file_name = custom_date() + "_" + po_list_str + file_extension
+                        new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
                     new_pdf_files.append((new_file_name, item))
         else:
 
@@ -129,9 +129,9 @@ def rename_files(pdf_files):
                 po_list = sorted([i.group(0) for i in re.finditer(regex, first_page_text)])
                 po_list_str = "_".join(set(po_list))
                 if po_list_str == "":
-                    new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension
+                    new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension.lower()
                 else:
-                    new_file_name = custom_date() + "_" + po_list_str + file_extension
+                    new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
                 new_pdf_files.append((new_file_name, file))
 
             # b. SI PLUSIEURS PAGES
@@ -148,13 +148,13 @@ def rename_files(pdf_files):
                     po_list_str = "_".join(set(po_list))
                     # si cette liste est vide, alors on ne s'occupe pas de la page
                     if po_list_str == "":
-                        new_file_name = custom_date() + "_" + "ERREUR_COMMANDE" + file_extension
+                        new_file_name = custom_date() + "_" + "ERREUR_COMMANDE" + file_extension.lower()
                     # sinon on ajoute la page dans un nouveau fichier pdf
                     else:
                         # on crée une instance de la classe PdfWriter
                         pdf_writer = PdfWriter()
                         pdf_writer.add_page(pdf_reader.pages[num_page])
-                        new_file_name = custom_date() + "_" + po_list_str + file_extension
+                        new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
                         # new_file_path = os.path.join(new_file_name)
                         new_file_path = Path(my_temp_dir.name) / new_file_name
                         with open(new_file_path, 'wb') as output_file:
@@ -209,15 +209,16 @@ def zip_files(new_pdf_files):
 
 
 # Interface utilisateur avec Streamlit
-st.title('Renommer et zipper des fichiers PDF')
+st.title('Renommer ARC')
 
 # Sélection des fichiers PDF
 pdf_files = st.file_uploader('Sélectionnez les fichiers PDF', type='pdf', accept_multiple_files=True)
 
 # Si des fichiers ont été sélectionnés, on les renomme et on les zippes
 if pdf_files:
-    new_pdf_files = rename_files(pdf_files)
-    # appeler la fonction zip_files et stocker le résultat dans zip_data
+    with st.spinner("¨Travail en cours...")
+        new_pdf_files = rename_files(pdf_files)
+        # appeler la fonction zip_files et stocker le résultat dans zip_data
     zip_data = zip_files(new_pdf_files)
     # vérifier que zip_data n'est pas égal à None
     if zip_data is not None:
