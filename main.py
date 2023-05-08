@@ -48,7 +48,7 @@ def rename_files(pdf_files):
     for file in pdf_files:
         pdf_reader = PdfReader(file)
         first_page_text = pdf_reader.pages[0].extract_text() # en testant le contenu de cette variable, on vérifie si on a affaire a un fichier PDF natif ou scanné.
-        file_extension = Path(file).suffix
+        file_extension = Path(file.name).suffix
 
         # 2 CAS DE FIGURE A GERER
 
