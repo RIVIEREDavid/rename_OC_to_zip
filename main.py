@@ -51,17 +51,45 @@ def rename_files(pdf_files):
         first_page_text = pdf_reader.pages[0].extract_text() # en testant le contenu de cette variable, on vérifie si on a affaire a un fichier PDF natif ou scanné.
         file_name, file_extension = os.path.splitext(file.name)
 
-        # 4 CAS DE FIGURE A GERER
+        # 2 CAS DE FIGURE A GERER
 
         # 1. SI FICHIER SCANNE:
 
         if first_page_text == "":
 
-            # a. SI 1 SEULE PAGE
+            # on va splitter chaque page du fichier pdf de type UploadedFile
+            # pour ça on va commencer par créer une liste vide qui va contenir des noms de fichiers TEMPORAIRES correspondant à chaque n°de page du PDF d'origine
+            # ceci afin de travailler sur le cloud Streamlit et non en local, ce que ne permet pas l'application
+            page_list = []
+            my_temp_dir = tempfile.TemporaryDirectory()
 
-            if len(pdf_reader.pages) == 1:
-                bytes_data = file.getvalue() 
-                images = convert_from_bytes(bytes_data, dpi=200)
+            # pour chaque page du PDF
+            for num_page in range(len(pdf_reader.pages)):
+                # création d'un writer
+                pdf_writer = PdfWriter()
+                # ajout de la page en-cour du fichier de départ
+                pdf_writer.add_page(pdf_reader.pages[num_page])
+                # création d'un nouveau nom temporaire
+                new_file_name_temp = str(num_page).rjust(2, "0") + file_extension.lower()
+                # création d'un nouveau chemin temporaire
+                new_file_path_temp = Path(my_temp_dir.name) / new_file_name_temp
+                # création du pdf modifié dans le dossier temporaire
+                with open(new_file_path_temp, 'wb') as output_file:
+                    pdf_writer.write(output_file)
+                # on lit le contenu du fichier renommé
+                with open(new_file_path_temp, 'rb') as f:
+                    file_content = f.read()
+                # on crée un objet BytesIO contenant le contenu du fichier renommé
+                file_object = io.BytesIO(file_content)
+                # enfin on ajoute cet objet à la liste
+                page_list.append(file_object)
+
+            # pour chaque liste de fichier temporaire
+            for item in page_list:
+                # on récupère le contenu
+                item_data = item.getvalue()
+                # on convertit en type bytes pour pouvoir exécuter le script ocr
+                images = convert_from_bytes(item_data, dpi=200)
                 text_result = ''
                 for img in images:
                     img_to_text = ocr(img)
@@ -69,122 +97,46 @@ def rename_files(pdf_files):
                 po_list = sorted([i.group(0) for i in re.finditer(regex, text_result)])
                 po_list_str = "_".join(set(po_list))
                 if po_list_str == "":
-                    new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension.lower()
+                    new_file_name = custom_date() + "_" + "ERREUR_COMMANDE" + file_extension.lower()
                 else:
                     new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
-                new_pdf_files.append((new_file_name, file))
+                new_pdf_files.append((new_file_name, item))
 
-            # b. SI PLUSIEURS PAGES
+        # 2. SI FICHIER EST NATIF:
 
-            else:
-                # on commence par splitter le fichier de type UploadedFile
-                # pour ça on comme par créer une liste vide qui va contenir des noms de fichiers TEMPORAIRES correspondant à chaque n°de page du PDF d'origine
-                page_list = []
-                my_temp_dir = tempfile.TemporaryDirectory()
-                # pour chaque page du PDF
-                for num_page in range(len(pdf_reader.pages)):
-                    # création d'un writer
+        else:
+
+            my_temp_dir = tempfile.TemporaryDirectory()
+
+            # pour chaque page du fichier on va vérifier si la regex existe dans le texte, si oui on garde la page et on renomme, sinon on continue:
+            for num_page in range(len(pdf_reader.pages)):
+                # on extrait le texte de la page en-cours de balayage et on créée une variable contenant la liste des commandes trouvées
+                page_text = pdf_reader.pages[num_page].extract_text()
+                po_list = sorted([i.group(0) for i in re.finditer(regex, page_text)], reverse=True)
+                po_list_str = "_".join(set(po_list))
+                # si cette liste est vide, alors on créée un fichier donc le nom contient "ERREUR_COMMANDE"
+                if po_list_str == "":
+                    new_file_name = custom_date() + "_" + "ERREUR_COMMANDE" + file_extension.lower()
+                # sinon on ajoute la page dans un nouveau fichier pdf
+                else:
+                    # on crée une instance de la classe PdfWriter
                     pdf_writer = PdfWriter()
-                    # ajout de la page en-cour du fichier de départ
                     pdf_writer.add_page(pdf_reader.pages[num_page])
-                    # création d'un nouveau nom temporaire
-                    new_file_name_temp = str(num_page).rjust(2, "0") + file_extension.lower()
-                    # création d'un nouveau chemin temporaire
-                    # new_file_path_temp = os.path.join(new_file_name_temp)
-                    new_file_path_temp = Path(my_temp_dir.name) / new_file_name_temp
-
-                    with open(new_file_path_temp, 'wb') as output_file:
+                    new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
+                    # new_file_path = os.path.join(new_file_name)
+                    new_file_path = Path(my_temp_dir.name) / new_file_name
+                    with open(new_file_path, 'wb') as output_file:
                         pdf_writer.write(output_file)
                     # on lit le contenu du fichier renommé
-                    with open(new_file_path_temp, 'rb') as f:
+                    with open(new_file_path, 'rb') as f:
                         file_content = f.read()
                     # on crée un objet BytesIO contenant le contenu du fichier renommé
                     file_object = io.BytesIO(file_content)
-                    page_list.append(file_object)
-
-                # pour chaque liste de fichier temporaire
-                for item in page_list:
-                    # on récupère le contenu
-                    item_data = item.getvalue()
-                    # on convertit en type bytes pour pouvoir exécuter le script ocr
-                    images = convert_from_bytes(item_data, dpi=200)
-                    text_result = ''
-                    for img in images:
-                        img_to_text = ocr(img)
-                        text_result += img_to_text
-                    po_list = sorted([i.group(0) for i in re.finditer(regex, text_result)])
-                    po_list_str = "_".join(set(po_list))
-                    if po_list_str == "":
-                        new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension.lower()
-                    else:
-                        new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
-                    new_pdf_files.append((new_file_name, item))
-        else:
-
-        # 2. SI FICHIER NATIF:
-
-            # a. SI 1 SEULE PAGE
-
-            if len(pdf_reader.pages) == 1:
-                po_list = sorted([i.group(0) for i in re.finditer(regex, first_page_text)])
-                po_list_str = "_".join(set(po_list))
-                if po_list_str == "":
-                    new_file_name = custom_date() + "_" + "NUMERO_COMMANDE_INTROUVABLE" + file_extension.lower()
-                else:
-                    new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
-                new_pdf_files.append((new_file_name, file))
-
-            # b. SI PLUSIEURS PAGES
-
-            else:
-
-                my_temp_dir = tempfile.TemporaryDirectory()
-
-                # pour chaque page du fichier on va vérifier si la regex existe dans le texte, si oui on garde la page et on renomme, sinon on continue:
-                for num_page in range(len(pdf_reader.pages)):
-                    # on extrait le texte de la page en-cours de balayage et on créée une variable contenant la liste des commandes trouvées
-                    page_text = pdf_reader.pages[num_page].extract_text()
-                    po_list = sorted([i.group(0) for i in re.finditer(regex, page_text)], reverse=True)
-                    po_list_str = "_".join(set(po_list))
-                    # si cette liste est vide, alors on ne s'occupe pas de la page
-                    if po_list_str == "":
-                        new_file_name = custom_date() + "_" + "ERREUR_COMMANDE" + file_extension.lower()
-                    # sinon on ajoute la page dans un nouveau fichier pdf
-                    else:
-                        # on crée une instance de la classe PdfWriter
-                        pdf_writer = PdfWriter()
-                        pdf_writer.add_page(pdf_reader.pages[num_page])
-                        new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
-                        # new_file_path = os.path.join(new_file_name)
-                        new_file_path = Path(my_temp_dir.name) / new_file_name
-                        with open(new_file_path, 'wb') as output_file:
-                            pdf_writer.write(output_file)
-                        # on lit le contenu du fichier renommé
-                        with open(new_file_path, 'rb') as f:
-                            file_content = f.read()
-                        # on crée un objet BytesIO contenant le contenu du fichier renommé
-                        file_object = io.BytesIO(file_content)
-                        # on ajoute l'objet BytesIO contenant le fichier renommé à la liste des fichiers PDF renommés
-                        new_pdf_files.append((new_file_name, file_object))
+                    # on ajoute l'objet BytesIO contenant le fichier renommé à la liste des fichiers PDF renommés
+                    new_pdf_files.append((new_file_name, file_object))
                                                            
 
     return new_pdf_files
-
-
-# @st.cache_data(persist="disk")
-# def zip_files(new_pdf_files):
-#     """
-#     Création d'un fichier zip à partir de la liste de fichiers PDF renommés.
-#     """
-#     zip_name = 'pdf_files.zip'
-#     with zipfile.ZipFile(zip_name, 'w') as myzip:
-#         for new_file_name, pdf_file in new_pdf_files:
-#             myzip.writestr(new_file_name, pdf_file.getvalue())
-#     # Retourner le fichier zip sous forme de bytes
-#     zip_data = open(zip_name, 'rb').read()
-#     # Supprimer le fichier zip du disque
-#     os.remove(zip_name)
-#     return zip_data
 
 
 @st.cache_data(persist="disk")
@@ -206,25 +158,27 @@ def zip_files(new_pdf_files):
     else:
         # Retourner une valeur vide
         return None
+    
 
+if __name__ == "__main__":
 
-# Interface utilisateur avec Streamlit
-st.title('Renommer ARC')
+    # Interface utilisateur avec Streamlit
+    st.title('Renommer ARC')
 
-# Sélection des fichiers PDF
-pdf_files = st.file_uploader('Sélectionnez les fichiers PDF', type='pdf', accept_multiple_files=True)
+    # Sélection des fichiers PDF
+    pdf_files = st.file_uploader('Sélectionnez les fichiers PDF', type='pdf', accept_multiple_files=True)
 
-# Si des fichiers ont été sélectionnés, on les renomme et on les zippes
-if pdf_files:
-    with st.spinner("¨Travail en cours..."):
-        new_pdf_files = rename_files(pdf_files)
-        # appeler la fonction zip_files et stocker le résultat dans zip_data
-    zip_data = zip_files(new_pdf_files)
-    # vérifier que zip_data n'est pas égal à None
-    if zip_data is not None:
-        st.success('Les fichiers ont été renommés et zippés avec succès !')
-        # Utiliser zip_data comme argument pour st.download_button
-        st.download_button('Télécharger le fichier zip', data=zip_data, file_name=f'{custom_date()}_pdf_files.zip', mime='application/zip')
-    else:
-    # afficher un message d'erreur
-        st.error("Le fichier zip n'a pas pu être créé.")
+    # Si des fichiers ont été sélectionnés, on les renomme et on les zippes
+    if pdf_files:
+        with st.spinner("Travail en cours... Merci de patienter"):
+            new_pdf_files = rename_files(pdf_files)
+            # appeler la fonction zip_files et stocker le résultat dans zip_data
+        zip_data = zip_files(new_pdf_files)
+        # vérifier que zip_data n'est pas égal à None
+        if zip_data is not None:
+            st.success('Les fichiers ont été renommés et zippés avec succès !')
+            # Utiliser zip_data comme argument pour st.download_button
+            st.download_button('Télécharger le fichier zip', data=zip_data, file_name=f'{custom_date()}_pdf_files.zip', mime='application/zip')
+        else:
+        # afficher un message d'erreur
+            st.error("Le fichier zip n'a pas pu être créé.")
