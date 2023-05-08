@@ -1,6 +1,5 @@
 import re
 import streamlit as st
-import os
 import zipfile
 from PyPDF2 import PdfReader, PdfWriter
 import io
@@ -49,7 +48,7 @@ def rename_files(pdf_files):
     for file in pdf_files:
         pdf_reader = PdfReader(file)
         first_page_text = pdf_reader.pages[0].extract_text() # en testant le contenu de cette variable, on vérifie si on a affaire a un fichier PDF natif ou scanné.
-        file_name, file_extension = os.path.splitext(file.name)
+        file_extension = Path(file).suffix
 
         # 2 CAS DE FIGURE A GERER
 
@@ -123,7 +122,6 @@ def rename_files(pdf_files):
                     pdf_writer = PdfWriter()
                     pdf_writer.add_page(pdf_reader.pages[num_page])
                     new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
-                    # new_file_path = os.path.join(new_file_name)
                     new_file_path = Path(my_temp_dir.name) / new_file_name
                     with open(new_file_path, 'wb') as output_file:
                         pdf_writer.write(output_file)
@@ -139,21 +137,21 @@ def rename_files(pdf_files):
     return new_pdf_files
 
 
-@st.cache_data(persist="disk")
+@st.cache_data(persist="disk") #le décorateur st.cache_data permet de retourner le résultat de la fonction dans le cache, et non en local.
 def zip_files(new_pdf_files):
     """
-    Création d'un fichier zip à partir de la liste de fichiers PDF renommés.
+    Création d'un fichier zip temporaire à partir de la liste de fichiers PDF renommés.
     """
     zip_name = 'pdf_files.zip'
     with zipfile.ZipFile(zip_name, 'w') as myzip:
         for new_file_name, pdf_file in new_pdf_files:
             myzip.writestr(new_file_name, pdf_file.getvalue())
     # Vérifier si le fichier zip existe
-    if os.path.exists(zip_name):
+    if Path(zip_name).exists():
         # Retourner le fichier zip sous forme de bytes
         zip_data = open(zip_name, 'rb').read()
-        # Supprimer le fichier zip du disque
-        os.remove(zip_name)
+        # Supprimer le fichier zip
+        Path(zip_name).unlink()
         return zip_data
     else:
         # Retourner une valeur vide
