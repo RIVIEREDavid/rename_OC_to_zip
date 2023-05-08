@@ -8,6 +8,7 @@ from pdf2image.pdf2image import convert_from_bytes
 from datetime import datetime
 import tempfile
 from pathlib import Path
+import fnmatch
 
 regex = re.compile(r"(4|5)50\d{7}|ENQA\s?\d{4}")
 
@@ -32,8 +33,13 @@ def extract_text(file_list):
     return text_list
 
 
-def custom_date() -> str:
-    custom_date = datetime.strftime(datetime.now(), "%Y%m%d%H%M%S")
+def custom_date(param: str) -> str:
+    if param == "zip_file":
+        custom_date = datetime.strftime(datetime.now(), "%Y%m%d%H%M%S")
+    elif param == "pdf_file":
+        custom_date = datetime.strftime(datetime.now(), "%Y%m%d")
+    else:
+        custom_date = ""
     return custom_date
 
 
@@ -45,12 +51,13 @@ def rename_files(pdf_files):
     # initialisation de la liste des fichiers PDF
     new_pdf_files = []
 
+    # initialisation d"une liste pour gérer les doublons de numéros de commande
+    duplicate_file_list = []
+
     for file in pdf_files:
         pdf_reader = PdfReader(file)
         first_page_text = pdf_reader.pages[0].extract_text() # en testant le contenu de cette variable, on vérifie si on a affaire a un fichier PDF natif ou scanné.
         file_extension = Path(file.name).suffix
-
-        # 2 CAS DE FIGURE A GERER
 
         # 1. SI FICHIER SCANNE:
 
@@ -96,15 +103,27 @@ def rename_files(pdf_files):
                 po_list = sorted([i.group(0) for i in re.finditer(regex, text_result)])
                 po_list_str = "_".join(set(po_list))
                 if po_list_str == "":
-                    new_file_name = custom_date() + "_" + "ERREUR_COMMANDE" + file_extension.lower()
+                    new_file_name = custom_date("pdf_file") + "_" + "ERREUR_COMMANDE" + file_extension.lower()
                 else:
-                    new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
-                new_pdf_files.append((new_file_name, item))
+                    new_file_name = custom_date("pdf_file") + "_" + po_list_str + file_extension.lower()
+                duplicate_file_list.append(new_file_name)
+                existing_files = [i for i in fnmatch.filter(duplicate_file_list, new_file_name)]
+                count = len(existing_files)
+                date_perso = custom_date("pdf_file")
+                count_perso = str(count).rjust(2, "0")
+                if po_list_str == "":
+                    def_file_name = f"{date_perso}_{count_perso}_ERREUR_COMMANDE{file_extension.lower()}"
+                else:
+                    def_file_name = f"{date_perso}_{count_perso}_{po_list_str}{file_extension.lower()}"
+
+                new_pdf_files.append((def_file_name, item))
+
 
         # 2. SI FICHIER EST NATIF:
 
         else:
 
+            # création d'un répertoire temporaire pour ne pas avoir à travailler en local, sinon app streamlit ne fonctionnera pas
             my_temp_dir = tempfile.TemporaryDirectory()
 
             # pour chaque page du fichier on va vérifier si la regex existe dans le texte, si oui on garde la page et on renomme, sinon on continue:
@@ -115,25 +134,32 @@ def rename_files(pdf_files):
                 po_list_str = "_".join(set(po_list))
                 # si cette liste est vide, alors on créée un fichier donc le nom contient "ERREUR_COMMANDE"
                 if po_list_str == "":
-                    new_file_name = custom_date() + "_" + "ERREUR_COMMANDE" + file_extension.lower()
-                # sinon on ajoute la page dans un nouveau fichier pdf
+                    new_file_name = custom_date("pdf_file") + "_" + "ERREUR_COMMANDE" + file_extension.lower()
                 else:
-                    # on crée une instance de la classe PdfWriter
-                    pdf_writer = PdfWriter()
-                    pdf_writer.add_page(pdf_reader.pages[num_page])
-                    new_file_name = custom_date() + "_" + po_list_str + file_extension.lower()
-                    new_file_path = Path(my_temp_dir.name) / new_file_name
-                    with open(new_file_path, 'wb') as output_file:
-                        pdf_writer.write(output_file)
-                    # on lit le contenu du fichier renommé
-                    with open(new_file_path, 'rb') as f:
-                        file_content = f.read()
-                    # on crée un objet BytesIO contenant le contenu du fichier renommé
-                    file_object = io.BytesIO(file_content)
-                    # on ajoute l'objet BytesIO contenant le fichier renommé à la liste des fichiers PDF renommés
-                    new_pdf_files.append((new_file_name, file_object))
-                                                           
-
+                    new_file_name = custom_date("pdf_file") + "_" + po_list_str + file_extension.lower()
+                # on crée une instance de la classe PdfWriter
+                pdf_writer = PdfWriter()
+                pdf_writer.add_page(pdf_reader.pages[num_page])
+                duplicate_file_list.append(new_file_name)
+                existing_files = [i for i in fnmatch.filter(duplicate_file_list, new_file_name)]
+                count = len(existing_files)
+                date_perso = custom_date("pdf_file")
+                count_perso = str(count).rjust(2, "0")
+                if po_list_str == "":
+                    def_file_name = f"{date_perso}_{count_perso}_ERREUR_COMMANDE{file_extension.lower()}"
+                else:
+                    def_file_name = f"{date_perso}_{count_perso}_{po_list_str}{file_extension.lower()}"
+                new_file_path = Path(my_temp_dir.name) / def_file_name
+                with open(new_file_path, 'wb') as output_file:
+                    pdf_writer.write(output_file)
+                # on lit le contenu du fichier renommé
+                with open(new_file_path, 'rb') as f:
+                    file_content = f.read()
+                # on crée un objet BytesIO contenant le contenu du fichier renommé
+                file_object = io.BytesIO(file_content)
+                # on ajoute l'objet BytesIO contenant le fichier renommé à la liste des fichiers PDF renommés
+                new_pdf_files.append((def_file_name, file_object))
+                                   
     return new_pdf_files
 
 
@@ -176,7 +202,7 @@ if __name__ == "__main__":
         if zip_data is not None:
             st.success('Les fichiers ont été renommés et zippés avec succès !')
             # Utiliser zip_data comme argument pour st.download_button
-            st.download_button('Télécharger le fichier zip', data=zip_data, file_name=f'{custom_date()}_pdf_files.zip', mime='application/zip')
+            st.download_button('Télécharger le fichier zip', data=zip_data, file_name=f'{custom_date("zip_file")}_pdf_files.zip', mime='application/zip')
         else:
         # afficher un message d'erreur
             st.error("Le fichier zip n'a pas pu être créé.")
