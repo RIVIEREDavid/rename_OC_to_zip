@@ -10,8 +10,7 @@ import tempfile
 from pathlib import Path
 import fnmatch
 
-regex = re.compile(r"(4|5)50\d{7}|ENQA\s?\d{4}")
-
+regex = re.compile(r"(4|5)50\d{7}|ENQA\s?\d{4,6}")
 
 # Fonction de lecture OCR
 def ocr(image):
@@ -43,7 +42,7 @@ def custom_date(param: str) -> str:
     return custom_date
 
 
-def rename_files(pdf_files):
+def rename_files(pdf_files, type: bool):
     """
     Renommage des fichiers en fonctione de la regex
     """
@@ -109,12 +108,15 @@ def rename_files(pdf_files):
                 duplicate_file_list.append(new_file_name)
                 existing_files = [i for i in fnmatch.filter(duplicate_file_list, new_file_name)]
                 count = len(existing_files)
-                date_perso = custom_date("pdf_file")
+                if type == False:
+                    date_perso = custom_date("pdf_file") + "_"
+                else:
+                    date_perso = ""
                 count_perso = str(count).rjust(2, "0")
                 if po_list_str == "":
-                    def_file_name = f"{date_perso}_{count_perso}_ERREUR_COMMANDE{file_extension.lower()}"
+                    def_file_name = f"{date_perso}{count_perso}_ERREUR_COMMANDE{file_extension.lower()}"
                 else:
-                    def_file_name = f"{date_perso}_{count_perso}_{po_list_str}{file_extension.lower()}"
+                    def_file_name = f"{date_perso}{count_perso}_{po_list_str}{file_extension.lower()}"
 
                 new_pdf_files.append((def_file_name, item))
 
@@ -143,12 +145,15 @@ def rename_files(pdf_files):
                 duplicate_file_list.append(new_file_name)
                 existing_files = [i for i in fnmatch.filter(duplicate_file_list, new_file_name)]
                 count = len(existing_files)
-                date_perso = custom_date("pdf_file")
+                if type == False:
+                    date_perso = custom_date("pdf_file") + "_"
+                else:
+                    date_perso = ""
                 count_perso = str(count).rjust(2, "0")
                 if po_list_str == "":
-                    def_file_name = f"{date_perso}_{count_perso}_ERREUR_COMMANDE{file_extension.lower()}"
+                    def_file_name = f"{date_perso}{count_perso}_ERREUR_COMMANDE{file_extension.lower()}"
                 else:
-                    def_file_name = f"{date_perso}_{count_perso}_{po_list_str}{file_extension.lower()}"
+                    def_file_name = f"{date_perso}{count_perso}_{po_list_str}{file_extension.lower()}"
                 new_file_path = Path(my_temp_dir.name) / def_file_name
                 with open(new_file_path, 'wb') as output_file:
                     pdf_writer.write(output_file)
@@ -192,10 +197,16 @@ if __name__ == "__main__":
     # Sélection des fichiers PDF
     pdf_files = st.file_uploader('Sélectionnez les fichiers PDF', type='pdf', accept_multiple_files=True)
 
+    #Sélectionner le mode de renommage
+    rename_choice = st.radio("Select renaming option", ('PO_NUM', 'DATE_PO_NUM'))
+
     # Si des fichiers ont été sélectionnés, on les renomme et on les zippes
     if pdf_files:
         with st.spinner("Travail en cours... Merci de patienter"):
-            new_pdf_files = rename_files(pdf_files)
+            if rename_choice == "PO_NUM":
+                new_pdf_files = rename_files(pdf_files, True)
+            else:
+                new_pdf_files = rename_files(pdf_files, False)
             # appeler la fonction zip_files et stocker le résultat dans zip_data
         zip_data = zip_files(new_pdf_files)
         # vérifier que zip_data n'est pas égal à None
